@@ -14,7 +14,12 @@ def getSubmission(submIdURL, username, password, session):
     print(u);
     payload = {'Action':'getsubmit', 'JudgeID':username, 'Password':password};
     r = session.post(u,payload);
-    print(r.text);
+    l = "";
+    for c in r.text:
+        if(c=='\r'):
+            continue;
+        l=l+c;    
+    return l;
 
 def buildURL(page, params):
     s = baseURL+page+".aspx?";
@@ -28,7 +33,7 @@ judgeId = sys.stdin.readline().rstrip();
 password = getpass.getpass();
 judgeNumber = re.match(r'([0-9]*)', judgeId).group(1);
 
-params = {'author':judgeNumber, 'status':'accepted', 'refresh':'0', 'count':'100'};
+params = {'author':judgeNumber, 'status':'accepted', 'refresh':'0', 'count':'1000'};
 buildURL('status', params);
 
 u = buildURL('status',params);
@@ -46,7 +51,23 @@ submId_re = re.compile(submId_pattern);
 probId_re = re.compile(probId_pattern);
 probName_re = re.compile(probName_pattern);
 
-submId = submId_re.findall(r.text);
-probId = probId_re.findall(r.text);
-probName = probName_re.findall(r.text);
-getSubmission(submId[0], judgeId, password, s);
+submIds = submId_re.findall(r.text);
+probIds= probId_re.findall(r.text);
+probNames = probName_re.findall(r.text);
+
+os.makedirs('TIMUS',exist_ok=True);
+i = 0;
+submIds.reverse();
+probIds.reverse();
+probNames.reverse();
+
+log = open('./TIMUS/log','w');
+
+for (submId,probId,probName) in zip(submIds, probIds, probNames):
+    ext = re.search(r'[0-9]+\.(.*)',submId ).group(1);
+    f = open('./TIMUS/'+probIds[i]+'.'+ext,'w');
+    f.write('//'+probName+'\n');
+    log.write('Downloading '+submId+'\n');
+    f.write(getSubmission(submId, judgeId, password, s));
+    log.write('Finished '+submId+'to '+probIds[i]+'.'+ext+'\n');
+    i=i+1;
