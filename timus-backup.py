@@ -9,8 +9,8 @@ import re;
 baseURL = 'http://acm.timus.ru/';
 
 
-def getSubmission(submIdURL, username, password, session):
-    u = baseURL+submIdURL;
+def getSubmission(submURLURL, username, password, session):
+    u = baseURL+submURLURL;
     print(u);
     payload = {'Action':'getsubmit', 'JudgeID':username, 'Password':password};
     r = session.post(u,payload);
@@ -27,47 +27,57 @@ def buildURL(page, params):
         s = s + param +"="+params[param]+"&";
     return (s[:-1]);
 
-#Get JudgeID and Password
+
+#Get JudgeID and Password from user
 print("Enter JudgeID: ",end="", flush=True);
 judgeId = sys.stdin.readline().rstrip();
 password = getpass.getpass();
 judgeNumber = re.match(r'([0-9]*)', judgeId).group(1);
-
-params = {'author':judgeNumber, 'status':'accepted', 'refresh':'0', 'count':'1000'};
-buildURL('status', params);
-
-u = buildURL('status',params);
 s = requests.session();
 
-r = s.get(u);
 #TODO: what happens if judgeID is invalid ?
+'''If judgeId is invalid, then page has text Author Not Found.
+   Search for that text and then report error. 
+'''
 
-
-submId_pattern = r'"(getsubmit\.aspx/[0-9]*\.[a-z]*)"';
+submURL_pattern = r'"(getsubmit\.aspx/[0-9]*\.[a-z]*)"';
 probId_pattern = r'"problem\.aspx\?space=1&amp;num=([0-9]*)"';
 probName_pattern = r'<SPAN CLASS="problemname">\. ([^<]*)</SPAN>';
 
-submId_re = re.compile(submId_pattern);
+submURL_re = re.compile(submURL_pattern);
 probId_re = re.compile(probId_pattern);
 probName_re = re.compile(probName_pattern);
 
-submIds = submId_re.findall(r.text);
-probIds= probId_re.findall(r.text);
-probNames = probName_re.findall(r.text);
-
 os.makedirs('TIMUS',exist_ok=True);
-i = 0;
-submIds.reverse();
-probIds.reverse();
-probNames.reverse();
-
 log = open('./TIMUS/log','w');
 
-for (submId,probId,probName) in zip(submIds, probIds, probNames):
-    ext = re.search(r'[0-9]+\.(.*)',submId ).group(1);
-    f = open('./TIMUS/'+probIds[i]+'.'+ext,'w');
-    f.write('//'+probName+'\n');
-    log.write('Downloading '+submId+'\n');
-    f.write(getSubmission(submId, judgeId, password, s));
-    log.write('Finished '+submId+'to '+probIds[i]+'.'+ext+'\n');
-    i=i+1;
+payload = {'author':judgeNumber, 'status':'accepted', 'refresh':'0', 'count':'100'};
+
+while True:
+    r = s.get(baseURL+'status.aspx', params=payload);
+    submURLs = submURL_re.findall(r.text);
+    probIds= probId_re.findall(r.text);
+    probNames = probName_re.findall(r.text);
+
+    
+    i = 0;
+    submURLs.reverse();
+    probIds.reverse();
+    probNames.reverse();
+
+    #No More Submissions
+    if(len(submURLs) == 0):
+        break;
+
+    for (submURL,probId,probName) in zip(submURLs, probIds, probNames):
+        (submId,ext) = re.search(r'([0-9]+)\.(.*)',submURL ).groups();
+        f = open('./TIMUS/'+probIds[i]+'.'+ext,'w');
+        log.write('Downloading '+submURL+'\n');
+        f.write(getSubmission(submURL, judgeId, password, s));
+        log.write('Finished '+submURL+'to '+probIds[i]+'.'+ext+'\n');
+        if(i==0):
+            x = int(submId);
+            x = x-1;
+            payload['from'] = str(x);
+            print(x);
+        i=i+1;
